@@ -1,0 +1,260 @@
+{
+    "bool": {
+        "must":     { "match": { "tweet": "elasticsearch" }},
+        "must_not": { "match": { "name":  "mary" }},
+        "should":   { "match": { "tweet": "full text" }}
+    }
+}
+
+{
+    "bool": {
+        "must": { "match":      { "email": "business opportunity" }},
+        "should": [
+             { "match":         { "starred": true }},
+             { "bool": {
+                   "must":      { "folder": "inbox" }},
+                   "must_not":  { "spam": true }}
+             }}
+        ],
+        "minimum_should_match": 1
+    }
+}
+
+filter - точное удовлетворение требованиям да/нет
+	// Is the "created" date in the range 2013 - 2014?
+query - так же говорит насколько точно документ удовлетворяет требованиям.
+	//Containing the words "quick", "brown", and "fox" — the closer together they are, the more relevant the document
+
+записывает очки удовлетворения в _score, который потом используется для сортировки результатов.
+filter кешируется
+
+
+самые часто используемые фильтры и запросы(query).
+http://www.elasticsearch.com/guide/en/elasticsearch/guide/current/_most_important_queries_and_filters.html
+
+term - используется для точного поиска: числа, даты,bool.
+	{ "term": { "age":    26           }}
+
+terms - для точного поиска, если может удовлетворять нескольким
+	{ "terms": { "tag": [ "search", "full_text", "nosql" ] }}
+
+range- попадание в область
+	{
+    "range": {
+        "age": {
+            "gte":  20,
+            "lt":   30
+        }
+    }
+}	
+gt/gte/lt/lte
+
+exist/missing - есть/нет данного поля у записи
+{
+    "exists":   {
+        "field":    "title"
+    }
+}	
+
+bool - фильтр объединяющий условия по булевской логике
+must(and)/must_not(not)/should(or)
+
+каждый из них может принимать как один параметр, так и массив:
+{
+    "bool": {
+        "must":     { "term": { "folder": "inbox" }},
+        "must_not": { "term": { "tag":    "spam"  }},
+        "should": [
+                    { "term": { "starred": true   }},
+                    { "term": { "unread":  true   }}
+        ]
+    }
+}
+
+match используется для поиска full-text
+если нужно искать одинаковое значение по нескольким полям, то
+используется multi_match
+{
+    "multi_match": {
+        "query":    "full text search",
+        "fields":   [ "title", "body" ]
+    }
+}
+
+bool как query, похож на bool как filter, но в отличие от yes/no
+параметров поиска, выдаёт результаты с полем _score(релевантностью).
+всё так же, только should может повысить _score при совпадении.
+
+{
+    "bool": {
+        "must":     { "match": { "title": "how to make millions" }},
+        "must_not": { "match": { "tag":   "spam" }},
+        "should": [
+            { "match": { "tag": "starred" }},
+            { "range": { "date": { "gte": "2014-01-01" }}}
+        ]
+    }
+}
+
+если в условии нет ни одного matсh, то хотя бы один should должен присутствовать.
+
+если необходимо сразу искать по фильтру и query, то необходимо использовать слово filtered
+{
+    "query": {
+        "filtered": {
+            "query":  { "match": { "email": "business opportunity" }},
+            "filter": { "term": { "folder": "inbox" }}
+        }
+    }
+}
+
+
+
+curl -XPUT 'http://localhost:9200/megacorp/employee/4' -d '{"first_name" : "John","last_name" : "Smith","age" : 25,"about" : "I love to go rock climbing","interests": [ "sports", "music" ], "lalka": true}'
+
+
+curl -XGET 'http://localhost:9200/_search?pretty' -d '
+{
+"query":{   
+        "bool":{
+           "must" : [
+               {"range": { "age":{ "gte" : 25}}
+               },
+               {"match": {
+                   "first_name":{
+                       "query": "John M",
+                       "operator": "and"
+                    }
+                }
+            }]
+        }
+    }
+}
+'
+
+curl -XGET 'http://localhost:9200/_search?pretty' -d '
+{
+    "query": {
+        "match": {"first_name": "John"}
+    }
+}
+'
+
+curl -XGET 'http://localhost:9200/_search?pretty' -d '
+{
+    "query": {
+        "match": {
+            "first_name":{
+                "query": "John M",
+                "operator": "or"
+            }
+        }
+    }
+}
+'
+
+
+
+curl -XGET 'http://localhost:9200/_search' -d '{ "query": {"filter": {"must": {"lalka": "true"}}}}'
+
+
+
+client.search 
+	index: "classifiers_kladr_streets",
+	body: {
+		query: {
+			bool: 
+				{
+				must: [{
+					regexp: {
+						formal_name: ".*с{2,}"
+					}
+				},
+				{
+				match: {
+					short_name: "ул"
+				}
+				}] 
+			} 
+		} 
+	}
+
+
+1)	gt,gte,lt,lte,ne,in,nin
+2)	or,and,not,nor
+3) 	exist(есть ли поле),type
+4)	mod,regex,text,where(удовлетворяет определённому javascript)
+5)	all,elemMatch,size
+
+http://docs.mongodb.org/manual/reference/operator/query/
+
+
+{
+	"archived"=>false, 
+	"provider_id"=>"543689d468ee000a74000001", 
+	"is_reserved"=>{"$ne"=>true}, 
+	"pages_count"=>123, 
+	"sender_country"=>"548efab12981000003000001", 
+	"sender_phone"=>"89176464", 
+	"receiver_name"=>/Майданов/i, 
+	"receipt_date"=>{"$gte"=>2015-02-20 00:00:00 UTC, "$lte"=>2015-02-27 00:00:00 UTC},
+	"answer_notifications.addressed_to_id"=>{"$all"=>["51bae98ef27369f77500017b", "51bace4af273695ed1000128"]}, 
+	"themes"=>{"$in"=>["543685ff3058000673000001", "547d8d77fcbb0002a3000001", "547703983c53000184000001"]}
+}
+
+
+curl -XGET 'http://localhost:9200/_search?pretty' -d '
+{
+"query":{   
+        "bool":{
+           "must" : [
+               {"match": {"archived":false}},
+               {"match": {"provider_id":"543689d468ee000a74000001"}},
+               {"match": {"pages_count": 123}},
+               {"match": {"sender_country": "548efab12981000003000001"}},
+               {"match": {"sender_phone": "89176464"}},
+               {"match": {"answer_notifications.addressed_to_id":{
+               		"query": "51bae98ef27369f77500017b 51bace4af273695ed1000128",
+               		"operator": "and"
+               		}
+               		}
+               	},
+               	{"match": {"themes":{
+               		"query": "543685ff3058000673000001 547d8d77fcbb0002a3000001 547703983c53000184000001",
+               		"operator": "or"
+               		}}
+               	},
+               	{"range": { "age":{ "gte" : 25}}},
+               ],
+            "must_not": [
+            {"match": {"is_reserved":true}}
+            ]
+        }
+    }
+}
+'
+
+про даты
+http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-aggregations-bucket-daterange-aggregation.html
+
+
+
+client.search 
+	index: "classifiers_kladr_streets",
+	body: {
+		query: {
+			bool: 
+				{
+				must: [{
+					regexp: {
+						formal_name: ".*с{2,}"
+					}
+				},
+				{
+				match: {
+					short_name: "ул"
+				}
+				}] 
+			} 
+		} 
+	}
