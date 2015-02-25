@@ -1,4 +1,4 @@
 require "./simple_type"
-class Estring < SimpleType
+class EFixnum < SimpleType
 
 end

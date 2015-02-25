@@ -1,27 +1,37 @@
 require "./nested_node"
 require "./node"
+require "./logic_node"
+require 'rails'
 
 class Tree
 
-	attr_accessor :nodes
-	attr_accessor :data
+	attr_accessor :criteria
 
-
-	def initialize(data = {})
-		@data = data
-		@nodes = []
+	def initialize(criteria = {})
+		self.criteria = criteria
 	end
 
-	def parse_data
-		@data.each_key do |key|
-			is_field_nested?(key) ? cur_node = NestedNode.new(key, @data[key]) : cur_node = Node.new(key, @data[key])
-			cur_node.parse
-			@nodes.push(cur_node)
-		end
+	def nodes
+		criteria.map do |key, value|
+			if nested_field?(key) 
+				NestedNode.new(key, value)
+			else
+			 logic_node?(key,value)
+			end
+		end.compact
 	end
 
-	def is_field_nested?(field)
+	def logic_node?(key,value)
+		return LogicNode.new(key, value).deserialize if logics.include?(key)
+		return Node.new(key, value).deserialize
+	end
+
+	def nested_field?(field)
 		field.include?(".")
+	end
+
+	def logics
+		@logics ||= ["$or","$and","$not","$nor"]
 	end
 
 end
@@ -37,7 +47,8 @@ tree = Tree.new({
 	"receiver_name"=>/Майданов/i, 
 	"receipt_date"=>{"$gte"=>"2015-02-20 00:00:00 UTC", "$lte"=>"2015-02-27 00:00:00 UTC"},
 	"answer_notifications.addressed_to_id"=>{"$all"=>["51bae98ef27369f77500017b", "51bace4af273695ed1000128"]}, 
-	"themes"=>{"$in"=>["543685ff3058000673000001", "547d8d77fcbb0002a3000001", "547703983c53000184000001"]}
+	"themes"=>{"$in"=>["543685ff3058000673000001", "547d8d77fcbb0002a3000001", "547703983c53000184000001"]},
+	"$or"=>[{"provider_id"=>1, "_id"=>{"$in"=>[1, 2]}}]
 })
 
-tree.parse_data
+puts tree.nodes

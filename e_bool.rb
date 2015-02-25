@@ -1,4 +1,4 @@
 require "./simple_type"
-class Ebool < SimpleType
+class EBool < SimpleType
 
 end

@@ -1,4 +1,4 @@
 require "./simple_type"
-class Efixnum < SimpleType
+class EString < SimpleType
 
 end

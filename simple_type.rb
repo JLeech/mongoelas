@@ -7,7 +7,7 @@ class SimpleType
 	end
 
 	def deserialize(field)
-		return {"match" => {"#{field}" => "#{value}"}}
+		return {"must" => {"match" => {"#{field}" => value}}}
 	end
 
 end
