@@ -98,7 +98,7 @@ bool как query, похож на bool как filter, но в отличие о
 
 если в условии нет ни одного matсh, то хотя бы один should должен присутствовать.
 
-если необходимо сразу искать по фильтру и query, то необходимо использовать слово filtered
+если необходимо сразу искать по фильтру и query, то нужно использовать слово filtered
 {
     "query": {
         "filtered": {
@@ -287,14 +287,489 @@ curl -XGET 'http://192.168.232.8:9200/classifiers_kladr_streets/_search?pretty' 
           {"match": {"short_name": "ул"}},
           {"bool": {
             "should":[
-              {"match":{"name": "Школьная"}}
+              {"match":{"name": "Школьная"}},
+              {"filtered" : {
+                "filter":{
+                "not" : {
+                  "term":{"short_name": "gk"}
+                }
+              }}}
             ]
           }
-          }
+          } 
         ]
     }
   }
 }
 '
 
+
+curl -XGET 'http://192.168.232.8:9200/classifiers_kladr_streets/_search?pretty' -d '
+{
+  "query": {
+      "bool": {
+        "must":[
+          {"span_or" :{
+              "clauses" : [
+                {"span_term" : {"okato":"90240840002"}}
+              ]
+            }
+          } 
+        ]
+    }
+  }
+}
+'
+
+curl -XGET 'http://192.168.232.8:9200/classifiers_kladr_streets/_search?pretty' -d '
+{
+  "query": {
+      "bool": {
+        "must":[
+          {"match": {"name": "Школьная"}},
+          {"bool": {
+            "should":[
+              {"match":{"short_name": "пл."}},
+              {"bool": {
+                "must_not": [
+                  {"match":{"short_name": "ул"}}
+                ]
+              }
+              }
+            ]
+          }
+          } 
+        ]
+    }
+  }
+}
+'
+
+
+
+
 curl -XGET 'http://192.168.232.8:9200/_all/_settings'
+
+
+Core::Kladr::Streets.or(:okato.in => [90230875002, 90230875002]).criteria
+
+"okato":"90230875002"
+
+curl -XGET 'http://192.168.232.8:9200/classifiers_kladr_streets/_search?pretty' -d '
+{"query":{"bool":{"must":[{"match_phrase":{"name":"Гоголя"}}]}}}'
+
+{"query" : {"bool" : {"must" : [{"bool" : {"should" : [{"match" : {"short_name" : "ул"}}, {"bool" : {"must_not" : {"match" : {"okato" : {"query" : "90230875002 90230875002", "operator" : "or"}}}}}]}}]}}}
+
+Core::Kladr::Street.or(:short_name => "ул",:okato.nin => ["90230875002", "90230875002"]).count
+
+Core::Kladr::Street.or(:short_name => "ул").count
+
+
+
+curl -XGET 'http://192.168.232.8:9200/classifiers_production_db_core_oshs_mvd_officials/_search?pretty' -d '{"query" : {"bool" : {"must" : [{"bool" : {"should" : [{"match" : {"short_name" : "ул"}}, {"bool" : {"must_not" : {"match" : {"okato" : {"query" : "90230875002 90230875002", "operator" : "or"}}}}}]}}]}}}'
+
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_search?pretty' -d '
+{"query":{"match_all": {}}}'
+
+Core::Cards::SecretIncomingDocuments::Card.where('state_structures.signer_name' => /а/, 'state_structures.add_info' => nil).count
+
+Core::Cards::CitizenRequests::Card.where(state_structures: {'$elemMatch' => {'add_info' => {"$ne" => ''}}})
+
+Core::Cards::CitizenRequests::Card.where(state_structures: {'$elemMatch' => {'signer_name' => /а/,'add_info' => ''}}).count
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_count?pretty' -d '
+{
+"query":{"bool": {
+  "must": {
+    "match_all": {
+    }
+  }
+}}}'
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_count?pretty' -d '
+{
+  "query":{
+    "bool":{
+      "must":[
+      {"match": {"state_structures.organisation_id":"54378ed1a90a000592000001"}}
+      ]
+    }
+  }
+}
+'
+
+Core::Cards::CitizenRequests::Card.where('state_structures.signer_type' => "esd_person","state_structures.organisation_id"=>"54378ed1a90a000592000001").count
+
+Core::Cards::CitizenRequests::Card.where('state_structures'=> {'$elemMatch' => { 'signer_type' => "esd_person","organisation_id"=>"54378ed1a90a000592000001"}}).count
+
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_search?pretty&size=30' -d '
+{"fields":["state_structures.signer_name"], "query":{"bool":{"must":[{"regexp":{"state_structures.signer_name":".*а.*"}}]}}}'
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_count?pretty' -d '
+{"query":{"bool":{"must":[{"regexp":{"state_structures.signer_name":".*а.*"}}, {"constantScore":{"filter":{"missing":{"field":"state_structures.add_info"}}}}]}}}'
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_count?pretty' -d '
+{ "query": { "filtered": { "filter": { "not": { "filter": { "range": { "state_structures.add_info": { } } } } } } } }'
+
+{ "query": { "filtered": { "filter": { "not": { "filter": { "range": { "name": { } } } } } } } }
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_count?pretty' -d '
+{"query":
+  {"bool":
+    {"must":[
+      {"bool": {
+            "should":[
+               {"match":
+                 {"themes":
+                   {"query":"543685ff3058000673000001 547d8d77fcbb0002a3000001 547703983c53000184000001", 
+                    "operator":"or"}
+                 }
+               },
+              {"constantScore":
+                {"filter":
+                  {"missing":
+                    {"field":"themes"}}}}
+            ]
+          }
+      } 
+    ]
+    }}}'
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_count?pretty' -d '{"query":{"bool":{"must":[[{"match_phrase":{"state_structures.signer_type":"esd_person"}}, {"match_phrase":{"state_structures.organisation_id":"54378ed1a90a000592000001"}}]]}}}'
+
+
+VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+
+{"query"=>{"bool"=>{"must"=>[{"match"=>{"themes"=>{"query"=>"543685ff3058000673000001 547d8d77fcbb0002a3000001 547703983c53000184000001", "operator"=>"or"}}}]}}} 
+
+
+{"match" :
+      {"state_structures.r__s_last_name" : "207198194190212174192186194168164"}
+} 
+        {
+          "nested": {
+            "path": "comments", 
+            "query": {
+              "bool": {
+                "": [ 
+                  { "match": { "comments.name": "john" }},
+                  { "match": { "comments.age":  28     }}
+                ]
+        }}}}
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_mapping/field/id'
+
+aa = Core::Cards::CitizenRequests::Card.where('state_structures'=> {'$elemMatch' => { 'signer_type' => { '$elemMatch' => 'esd_person' },'organisation_id'=>'54378ed1a90a000592000001'}})
+aa = Core::Cards::CitizenRequests::Card.where('state_structures'=> {'$elemMatch' => { 'signer_type' => 'esd_person',"organisation_id"=>"54378ed1a90a000592000001"}})
+aa = Core::Cards::CitizenRequests::Card.where( "themes"=>{"$in"=>["543685ff3058000673000001", "547d8d77fcbb0002a3000001",nil,nil,nil,"547703983c53000184000001"]} )
+
+Core::Cards::CitizenRequests::Card.where(state_structures: {'$elemMatch' => {'signer_name' => /а/}}).count
+
+Core::Cards::CitizenRequests::Card.where( "themes"=>{"$in"=>["543685ff3058000673000001", "547d8d77fcbb0002a3000001", "547703983c53000184000001",nil,nil,nil]} )
+
+Core::Cards::IncomingDocuments::Card.where("_id"=>{"$nin"=>[]}) 
+
+Core::Cards::IncomingDocuments::Card.where("exemplars.addressed_to_name" => /колок/, "exemplars.status_code" => "to_the_report").with_elastic_search.count
+
+{"bool"=>{"must"=>[{"bool"=>{"should"=>[{"match"=>{"themes"=>{"query"=>"543685ff3058000673000001 547d8d77fcbb0002a3000001 547703983c53000184000001 ", "operator"=>"or"}}}, {"constantScore"=>{"filter"=>{"missing"=>{"field"=>"themes"}}}}]}}]}}
+
+
+nested part
+
+curl -XGET 'http://192.168.232.8:9200/citizen_requests_production_db_core_cards_citizen_requests_cards/_count?pretty' -d'{"query":{"bool":{"must":[{"nested":{"path":"state_structures", "query":{"bool":{"must":[{"match_phrase":{"state_structures.signer_type":"esd_person"}}, {"match_phrase":{"state_structures.organisation_id":"54378ed1a90a000592000001"}}]}}}}]}}}'
+
+
+
+'{"query"=>
+  {"bool"=>
+    {"must"=>[
+      {"nested"=>
+        {"path"=>"state_structures", 
+         "query"=>
+            {"bool"=>
+              {"must"=>[
+                {"match_phrase"=>{"state_structures.signer_type"=>"esd_person"}}, {"match_phrase"=>{"state_structures.organisation_id"=>"54378ed1a90a000592000001"}}
+                ]}
+            }
+        }
+      }
+      ]
+    }
+  }
+}'
+
+curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '{"query":{"match_all":{}}}'
+
+curl -XGET 'http://192.168.232.8:9200/test_test_v1/_mapping?pretty'
+
+curl -XPUT 'http://192.168.232.8:9200/test_test_v1/tweet/1' -d '{
+        "message" : "some arrays in this tweet...",
+        "lists" : [
+            {
+                "name" : "prog_list",
+                "description" : "programming list"
+            },
+            {
+                "name" : "cool_list",
+                "description" : "cool stuff list"
+            }
+        ]
+}'
+
+curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '{
+  "query":{
+    "bool" :{
+      "must":[
+        {"match": {"lists.name" : "prog_list"}}
+      ]
+    }
+  }
+}'
+
+curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '{
+  "query":{
+    "bool" :{
+      "must":[
+        {"nested": {
+          "path": "lists",
+          "query" : {
+            "bool": {
+              "must": [
+                {"match": {"name":"prog_list"}},
+                {"match": {"description":"cool"}}
+              ]
+            }
+          }
+        }}
+      ]
+    }
+  }
+}'
+
+curl -XPUT 'http://192.168.232.8:9200/test_test/tweet/_mapping' -d '
+{
+    "tweet" : {
+        "properties" : {
+            "lists" : {"type" : "nested", "store" : "yes"}
+        }
+    }
+}
+'
+references
+про сами данные
+http://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-nested-type.html
+про переиндексирование
+https://www.elastic.co/blog/changing-mapping-with-zero-downtime
+http://www.elastic.co/guide/en/elasticsearch/guide/master/reindex.html
+http://www.elastic.co/guide/en/elasticsearch/guide/master/scan-scroll.html
+http://www.elastic.co/guide/en/elasticsearch/guide/master/bulk.html
+
+
+FINALE
+
+задаём формат данных:
+
+"type" : "nested", << говорит что поле nested, неожиданно
+"include_in_parent": true,  << вот это позволяет искать и через точку(см. ниже)
+
+curl -XPUT 'http://192.168.232.8:9200/test_test_v1/_mapping/tweet' -d '{
+    "tweet" : {
+        "properties" : {
+            "message" : {"type":"string"},
+            "lists" : {
+                "type" : "nested",
+                "include_in_parent": true, 
+                "properties": {
+                    "name" : {"type": "string" },
+                    "description"  : {"type": "string" }
+                }
+            }
+        }
+    }
+}
+эта база откуда попытаемся переиндексировать в test_test_v1
+curl -XPUT 'http://192.168.232.8:9200/test_test/_mapping/tweet' -d '{
+    "tweet" : {
+        "properties" : {
+            "message" : {"type":"string"},
+            "lists" : {
+                "type" : "object",
+                "properties": {
+                    "name" : {"type": "string" },
+                    "description"  : {"type": "string" }
+                }
+            }
+        }
+    }
+}
+
+загружаем данные:
+curl -XPUT 'http://192.168.232.8:9200/test_test_v1/tweet/1' -d '{
+        "message" : "some arrays in this tweet...",
+        "lists" : [ 
+            {
+                "name" : "prog_list", 
+                "description" : "programming list"
+            },
+            {
+                "name" : "cool_list",
+                "description" : "cool stuff list"
+            }
+        ]
+}'
+внутри list будут распознаны как nested объекты.
+индексация будет по ним тоже, поэтому эластик пишет что в базе test_test_v1 3 объекта.
+
+ТЕСТИРОВАНИЕ:
+
+VVV - не находит, так как в разных нестедах
+
+Пример через processor
+aa = Core::Cards::CitizenRequests::Card.where('lists'=> {'$elemMatch' => { 'name' => "prog_list" ,'description'=>'cool'}})
+
+Core::ElasticSearch::Processor.to_query(aa)
+=> curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '
+ {"query":{"bool":{"must":[{"nested":{"path":"lists", "query":{"bool":{"must":[{"match_phrase":{"lists.name":"prog_list"}}, {"match_phrase":{"lists.description":"cool"}}]}}}}]}}}'
+
+
+curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '{
+  "query":{
+    "bool" :{
+      "must":[
+        {"nested": {
+          "path": "lists",
+          "query" : {
+            "bool": {
+              "must": [
+                {"match": {"name":"prog_list"}},
+                {"match": {"description":"cool"}}
+              ]
+            }
+          }
+        }}
+      ]
+    }
+  }
+}'
+
+VVV - находит, так как в одном нестеде
+
+aa = Core::Cards::CitizenRequests::Card.where('lists'=> {'$elemMatch' => { 'name' => "prog_list" ,'description'=>'programming'}})
+=> curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d ' 
+{"query":{"bool":{"must":[{"nested":{"path":"lists", "query":{"bool":{"must":[{"match_phrase":{"lists.name":"prog_list"}}, {"match_phrase":{"lists.description":"programming"}}]}}}}]}}}'
+
+curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '{
+  "query":{
+    "bool" :{
+      "must":[
+        {"nested": {
+          "path": "lists",
+          "query" : {
+            "bool": {
+              "must": [
+                {"match": {"name":"prog_list"}},
+                {"match": {"description":"programming"}}
+              ]
+            }
+          }
+        }}
+      ]
+    }
+  }
+}'
+
+
+можно обращаться и через точку, но тогда он будет искать как-будто не в нестедах, то есть такой найдёт:
+
+aa = Core::Cards::CitizenRequests::Card.where('lists.name'=> "prog_list" ,'lists.description'=>'programming')
+=> curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '
+{"query":{"bool":{"must":[{"match_phrase":{"lists.name":"prog_list"}}, {"match_phrase":{"lists.description":"programming"}}]}}}'
+
+curl -XGET 'http://192.168.232.8:9200/test_test_v1/_search?pretty' -d '{
+  "query":{
+    "bool" :{
+      "must":[
+        {"match": {"lists.name" : "prog_list"}},
+        {"match": {"lists.description":"cool"}}
+      ]
+    }
+  }
+}'
+
+маппинг документа с object:
+curl -XGET 'http://192.168.232.8:9200/test_test/_mapping?pretty'
+получим:
+{
+  "test_test" : {
+    "mappings" : {
+      "tweet" : {
+        "properties" : {
+          "lists" : {
+            "properties" : {
+              "description" : {
+                "type" : "string"
+              },
+              "name" : {
+                "type" : "string"
+              }
+            }
+          },
+          "message" : {
+            "type" : "string"
+          }
+        }
+      }
+    }
+  }
+}
+
+с nested:
+{
+  "test_test_v1" : {
+    "mappings" : {
+      "tweet" : {
+        "properties" : {
+          "lists" : {
+            "type" : "nested",
+            "include_in_parent" : true,
+            "properties" : {
+              "description" : {
+                "type" : "string"
+              },
+              "name" : {
+                "type" : "string"
+              }
+            }
+          },
+          "message" : {
+            "type" : "string"
+          }
+        }
+      }
+    }
+  }
+}
+
+видно сразу, что можно пройти по индексам, промаппить их, получить слепок данных и вставить в каждый хеш по 
+"type" : "nested",
+"include_in_parent" : true,
+если у него есть ключ "properties" и это не корень(как здесь tweet). Правда тогда количество документов вырастет просто колоссально. Остаётся только ручками везде проставить где надо и пересоздать индекс. я всё брал из мана, который в референсах вверху.
+
+real_base - типо citizen_requests_production_db_core_cards_citizen_requests_cards
+curl -XPOST 'http://192.168.232.8:9200/_aliases' -d '{
+    "actions": [
+        { "add": {
+            "alias": "real_base",
+            "index": "test_test"
+        }}
+    ]
+}
+'
+
+связываем что обращения к real_base идут в test_test.
+теперь надо переиндексировать test_test, то есть создаём test_test_v1 с новыми полями, как наверху.
+затем надо скопировать все данные из test_test в test_test_1. 
+
+см best_migrator.rb
